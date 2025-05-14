@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>成績查詢</title>
+  <title>成績查詢（雙重驗證）</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
 </head>
@@ -13,39 +13,23 @@
         <div class="card shadow-lg rounded-2xl">
           <div class="card-body">
             <h3 class="card-title text-center mb-4">學生成績查詢</h3>
-            <div id="querySection">
-              <div class="mb-3">
-                <input id="studentName" type="text" class="form-control form-control-lg mb-2" placeholder="輸入學生姓名">
-                <input id="studentSSN" type="text" class="form-control form-control-lg" placeholder="輸入身分證字號">
-              </div>
-              <button id="searchBtn" class="btn btn-primary w-100 btn-lg">查詢</button>
+            <div class="mb-3">
+              <input id="studentName" type="text" class="form-control form-control-lg mb-2" placeholder="輸入學生姓名">
+              <input id="studentSSN" type="text" class="form-control form-control-lg" placeholder="輸入身分證字號">
             </div>
-            <!-- 結果與按鈕顯示區 -->
-            <div id="resultSection" class="mt-4" style="display:none;">
-              <div id="result" class="table-responsive"></div>
-              <div class="text-center mt-3">
-                <button id="confirmBtn" class="btn btn-success me-2"></button>
-                <button id="cancelBtn" class="btn btn-secondary">取消</button>
-              </div>
-            </div>
+            <button id="searchBtn" class="btn btn-primary w-100 btn-lg">查詢</button>
           </div>
         </div>
       </div>
     </div>
-    <!-- 確認狀態一覽 -->
-    <div class="row justify-content-center mt-5">
+    <div class="row justify-content-center mt-4">
       <div class="col-md-10">
-        <h4>確認狀態一覽</h4>
-        <div id="summary" class="table-responsive"></div>
+        <div id="result" class="table-responsive"></div>
       </div>
     </div>
   </div>
 
   <script>
-  // 從 localStorage 載入或初始化確認紀錄
-  let confirmations = JSON.parse(localStorage.getItem('confirmations') || '{}');
-
-  // 事件：查詢
   document.getElementById('searchBtn').addEventListener('click', function() {
     const name = document.getElementById('studentName').value.trim();
     const ssn  = document.getElementById('studentSSN').value.trim();
@@ -53,14 +37,16 @@
       alert('請同時輸入學生姓名與身分證號');
       return;
     }
+
     Papa.parse('students.csv', {
       download: true,
       header: true,
       complete: function(results) {
         const record = results.data.find(row =>
-          row['姓名'] === name && row['身分證字號'] === ssn
+          row['姓名'] === name &&
+          row['身分證字號'] === ssn
         );
-        showResult(record, name, ssn);
+        renderResult(record);
       },
       error: function(err) {
         console.error(err);
@@ -69,74 +55,32 @@
     });
   });
 
-  // 顯示查詢結果與按鈕
-  function showResult(record, name, ssn) {
-    const querySection = document.getElementById('querySection');
-    const resultSection = document.getElementById('resultSection');
-    const resultContainer = document.getElementById('result');
-    const confirmBtn = document.getElementById('confirmBtn');
-
-    querySection.style.display = 'none';
-    resultSection.style.display = 'block';
-
+  function renderResult(record) {
+    const container = document.getElementById('result');
     if (!record) {
-      resultContainer.innerHTML = '<p class="text-center text-danger">查無此學生或身分證號不符</p>';
-      confirmBtn.style.display = 'none';
+      container.innerHTML = '<p class="text-center text-danger">查無此學生或身分證號不符</p>';
       return;
     }
 
-    let html = `<table class="table table-bordered table-hover">
-      <thead class="table-secondary"><tr><th>欄位</th><th>值</th></tr></thead><tbody>`;
-    Object.entries(record).forEach(([key, value]) => {
-      html += `<tr><td>${key}</td><td>${value || 'N/A'}</td></tr>`;
-    });
-    html += `</tbody></table>`;
-    resultContainer.innerHTML = html;
-
-    // 設定確認按鈕狀態
-    const confirmKey = `${name}|${ssn}`;
-    const confirmed = !!confirmations[confirmKey];
-    confirmBtn.style.display = 'inline-block';
-    confirmBtn.disabled = confirmed;
-    confirmBtn.textContent = confirmed ? '已確認' : '確認無誤';
-
-    confirmBtn.onclick = function() {
-      confirmations[confirmKey] = { name, time: new Date().toLocaleString('zh-TW') };
-      localStorage.setItem('confirmations', JSON.stringify(confirmations));
-      renderSummary();
-      confirmBtn.textContent = '已確認';
-      confirmBtn.disabled = true;
-    };
-
-    document.getElementById('cancelBtn').onclick = function() {
-      resultSection.style.display = 'none';
-      querySection.style.display = 'block';
-    };
-
-    renderSummary();
-  }
-
-  function renderSummary() {
-    const summaryContainer = document.getElementById('summary');
-    const keys = Object.keys(confirmations);
-    if (!keys.length) {
-      summaryContainer.innerHTML = '<p class="text-center text-muted">尚無任何學生確認紀錄</p>';
-      return;
-    }
     let html = `<table class="table table-bordered table-hover">
       <thead class="table-secondary">
-        <tr><th>學生姓名</th><th>確認時間</th></tr>
-      </thead><tbody>`;
-    keys.forEach(key => {
-      const rec = confirmations[key];
-      html += `<tr><td>${rec.name}</td><td>${rec.time}</td></tr>`;
-    });
-    html += `</tbody></table>`;
-    summaryContainer.innerHTML = html;
-  }
+        <tr>
+          <th>欄位</th>
+          <th>值</th>
+        </tr>
+      </thead>
+      <tbody>`;
 
-  // 頁面載入時渲染
-  renderSummary();
+    Object.entries(record).forEach(([key, value]) => {
+      html += `<tr>
+        <td>${key}</td>
+        <td>${value || 'N/A'}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+  }
   </script>
 </body>
 </html>
